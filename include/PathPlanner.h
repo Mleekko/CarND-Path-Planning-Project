@@ -14,7 +14,9 @@ using std::vector;
 class PathPlanner {
 public:
     PathPlanner();
+
     void calculatePath();
+
     void updateCar(double x, double y, double s, double d, double yaw, double speed);
 
     const vector<double> &getPathX() const;
