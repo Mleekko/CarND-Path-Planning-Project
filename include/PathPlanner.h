@@ -15,6 +15,9 @@ class PathPlanner {
 public:
     PathPlanner();
 
+    PathPlanner(vector<double> mapX, vector<double> mapY, vector<double> mapS,
+                vector<double> mapDx, vector<double> mapDy);
+
     void calculatePath();
 
     void updateCar(double x, double y, double s, double d, double yaw, double speed);
@@ -27,6 +30,12 @@ private:
     Car *car;
     vector<double> pathX;
     vector<double> pathY;
+
+    vector<double> mapX;
+    vector<double> mapY;
+    vector<double> mapS;
+    vector<double> mapDx;
+    vector<double> mapDy;
 };
 
 
