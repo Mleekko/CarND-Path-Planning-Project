@@ -81,8 +81,8 @@ int main() {
                     double car_speed = j[1]["speed"];
 
                     // Previous path data given to the Planner
-                    auto previous_path_x = j[1]["previous_path_x"];
-                    auto previous_path_y = j[1]["previous_path_y"];
+                    vector<double> previous_path_x = j[1]["previous_path_x"];
+                    vector<double> previous_path_y = j[1]["previous_path_y"];
                     // Previous path's end s and d values
                     double end_path_s = j[1]["end_path_s"];
                     double end_path_d = j[1]["end_path_d"];
@@ -95,6 +95,7 @@ int main() {
                      * My code here
                      */
                     planner->updateCar(car_x, car_y, car_s, car_d, car_yaw, car_speed);
+                    planner->updatePrevPath(previous_path_x, previous_path_y, end_path_s, end_path_d);
                     planner->calculatePath();
 
                     json msgJson;
@@ -113,8 +114,9 @@ int main() {
         }  // end websocket if
     }); // end h.onMessage
 
-    h.onConnection([&h](uWS::WebSocket <uWS::SERVER> ws, uWS::HttpRequest req) {
+    h.onConnection([planner](uWS::WebSocket <uWS::SERVER> ws, uWS::HttpRequest req) {
         std::cout << "Connected!!!" << std::endl;
+        planner->reset();
     });
 
     h.onDisconnection([&h](uWS::WebSocket <uWS::SERVER> ws, int code,

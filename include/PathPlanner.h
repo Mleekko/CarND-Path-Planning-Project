@@ -5,6 +5,8 @@
 #ifndef PATH_PLANNING_PATHPLANNER_H
 #define PATH_PLANNING_PATHPLANNER_H
 
+static const int PATH_POINTS = 70;
+
 #include "Car.h"
 #include <vector>
 
@@ -21,6 +23,8 @@ public:
     void calculatePath();
 
     void updateCar(double x, double y, double s, double d, double yaw, double speed);
+    void updatePrevPath(vector<double> &prevPathX, vector<double> &prevPathY, double prevS, double prevD);
+    void reset();
 
     const vector<double> &getPathX() const;
 
@@ -28,6 +32,12 @@ public:
 
 private:
     Car *car;
+
+    vector<double> prevPathX;
+    vector<double> prevPathY;
+    double prevS;
+    double prevD;
+
     vector<double> pathX;
     vector<double> pathY;
 
