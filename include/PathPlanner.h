@@ -20,7 +20,7 @@ public:
     PathPlanner(vector<double> mapX, vector<double> mapY, vector<double> mapS,
                 vector<double> mapDx, vector<double> mapDy);
 
-    void calculatePath();
+    void calculatePath(vector<Car> traffic);
 
     void updateCar(double x, double y, double s, double d, double yaw, double speed);
     void updatePrevPath(vector<double> &prevPathX, vector<double> &prevPathY, double prevS, double prevD);

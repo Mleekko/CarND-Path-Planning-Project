@@ -14,6 +14,12 @@ public:
     double d;
     double yaw;
     double speed;
+
+    int getCurrentLane();
+
+    Car(double x, double y, double s, double d, double speed);
+
+    Car();
 };
 
 

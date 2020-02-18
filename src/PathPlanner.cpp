@@ -5,9 +5,11 @@
 #include "../include/PathPlanner.h"
 #include "../include/helpers.h"
 #include "../include/Coordinates.h"
+#include "../include/Constants.h"
 #include <cmath>
 #include <utility>
 #include <iostream>
+#include <cfloat>
 #include  "../include/spline/spline.h"
 
 
@@ -28,13 +30,11 @@ inline void ToLocalCoordinates(
     }
 }
 
-void PathPlanner::calculatePath() {
+void PathPlanner::calculatePath(vector<Car> traffic) {
     Coordinates c;
 
-    // TODO: should this be desired lane?
-    int currentLane = 1;
-    // Reference velocity (mph)
-    double ref_vel = 45.;
+    int currentLane = car->getCurrentLane();
+    double ref_vel = MAX_SPEED;
 
     unsigned int pathSize = prevPathX.size();
     double refS = pathSize > 0 ? prevS : car->s;
@@ -43,6 +43,36 @@ void PathPlanner::calculatePath() {
     double refY = car->y;
     double refYaw = deg2rad(car->yaw);
 
+    // just get the free lane or the lane with the farther collision distance
+    double collisionTimes[3] = {DBL_MAX, DBL_MAX, DBL_MAX};
+
+    for (int i = 0; i < traffic.size(); i++) {
+        Car other = traffic[i];
+        double distance = other.s - car->s;
+        if (distance > -4 && other.getCurrentLane() == currentLane && distance < 8) {
+            collisionTimes[other.getCurrentLane()] = 0;
+        } else if (distance > 4 && distance < 80) {
+            double time = distance / (car->speed - other.speed);
+            if (time > 0) {
+                int lane = other.getCurrentLane();
+                if (collisionTimes[lane] > time) {
+                    collisionTimes[lane] = time;
+                }
+            }
+
+        }
+    }
+
+    int desiredLane = car->getCurrentLane();
+    double max = DBL_MIN;
+    for (int i = 0; i < 3; i++) {
+        if (collisionTimes[i] > max) {
+            max = collisionTimes[i];
+            desiredLane = i;
+        }
+    }
+
+
     // std::cout << "car: " << car->s << "," << car->d << std::endl;
 
     vector<double> splinePointsX;
@@ -50,7 +80,7 @@ void PathPlanner::calculatePath() {
 
 //     std::cout << "pathSize: " << pathSize << std::endl;
     // decide the previous point
-    if (pathSize < 2){ // infer the previous point based on car direction
+    if (pathSize < 2) { // infer the previous point based on car direction
         double prevCarX = refX - cos(refYaw);
         double prevCarY = refY - sin(refYaw);
         splinePointsX.push_back(prevCarX);
@@ -75,8 +105,9 @@ void PathPlanner::calculatePath() {
     splinePointsY.push_back(refY);
 
     // push projections in 3 points 23 meters apart, meters
-    for (int i=1; i<4; i++) {
-        vector<double> nextWayPoint = getXY(refS + 25 * i, (2 + 4 * currentLane), mapS, mapX, mapY);
+    for (int i = 1; i < 4; i++) {
+        vector<double> nextWayPoint = getXY(refS + 25 * i, (LANE_WIDTH / 2 + LANE_WIDTH * desiredLane), mapS, mapX,
+                                            mapY);
         splinePointsX.push_back(nextWayPoint[0]);
         splinePointsY.push_back(nextWayPoint[1]);
     }
@@ -98,7 +129,7 @@ void PathPlanner::calculatePath() {
 
     double diffX = 0.;
     // fill the missing points
-    for (int i = 0; i < PATH_POINTS - pathSize; i++)    {
+    for (int i = 0; i < PATH_POINTS - pathSize; i++) {
         double x = diffX + targetX / N;
         double y = s(x);
 

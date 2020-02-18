@@ -91,12 +91,23 @@ int main() {
                     //   of the road.
                     auto sensor_fusion = j[1]["sensor_fusion"];
 
+                    vector<Car> traffic;
+                    for (int i=0; i<sensor_fusion.size(); i++) {
+                        double vX = sensor_fusion[i][3];
+                        double vY = sensor_fusion[i][4];
+                        double speed = sqrt(vX * vX + vY * vY);
+
+                        Car car = Car(sensor_fusion[i][1], sensor_fusion[i][2], sensor_fusion[i][5],
+                                           sensor_fusion[i][6], speed);
+                        traffic.push_back(car);
+                    }
+
                     /**
                      * My code here
                      */
                     planner->updateCar(car_x, car_y, car_s, car_d, car_yaw, car_speed);
                     planner->updatePrevPath(previous_path_x, previous_path_y, end_path_s, end_path_d);
-                    planner->calculatePath();
+                    planner->calculatePath(traffic);
 
                     json msgJson;
                     msgJson["next_x"] = planner->getPathX();
