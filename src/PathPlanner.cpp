@@ -17,24 +17,15 @@ PathPlanner::PathPlanner(vector<double> mapX, vector<double> mapY, vector<double
                          vector<double> mapDy) : mapX(std::move(mapX)), mapY(std::move(mapY)), mapS(std::move(mapS)),
                                                  mapDx(std::move(mapDx)), mapDy(std::move(mapDy)) {
     car = new Car();
-}
-
-inline void ToLocalCoordinates(
-        vector<double> &x_points, vector<double> &y_points, double refX, double refY, double ref_yaw) {
-    for (int i = 0; i < x_points.size(); i++) {
-        double shift_x = x_points[i] - refX;
-        double shift_y = y_points[i] - refY;
-
-        x_points[i] = shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw);
-        y_points[i] = shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw);
-    }
+    this->prevS = 0.;
+    this->prevD = 0.;
+    this->targetLane = 1;
 }
 
 void PathPlanner::calculatePath(vector<Car> traffic) {
     Coordinates c;
 
     int currentLane = car->getCurrentLane();
-    double ref_vel = MAX_SPEED;
 
     unsigned int pathSize = prevPathX.size();
     double refS = pathSize > 0 ? prevS : car->s;
@@ -45,39 +36,62 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
 
     // just get the free lane or the lane with the farther collision distance
     double collisionTimes[3] = {DBL_MAX, DBL_MAX, DBL_MAX};
+    double nextCarDistances[3] = {DBL_MAX, DBL_MAX, DBL_MAX};
+    double nextCarSpeeds[3] = {DBL_MAX, DBL_MAX, DBL_MAX};
 
-    for (int i = 0; i < traffic.size(); i++) {
-        Car other = traffic[i];
+    for (auto other : traffic) {
         double distance = other.s - car->s;
-        if (distance > -4 && other.getCurrentLane() == currentLane && distance < 8) {
-            collisionTimes[other.getCurrentLane()] = 0;
-        } else if (distance > 4 && distance < 80) {
+        int lane = other.getCurrentLane();
+        if (distance > 0 && nextCarDistances[lane] > distance) {
+            nextCarDistances[lane] = distance;
+            nextCarSpeeds[lane] = other.speed / MILES_PER_HOUR_2_METERS_PER_SECOND;
+        }
+        if (distance > -8 && distance < 10) {
+            // can't use the lane - car is too close
+            collisionTimes[lane] = 0;
+        } else if (distance >= 10 && distance < 80) {
             double time = distance / (car->speed - other.speed);
             if (time > 0) {
-                int lane = other.getCurrentLane();
                 if (collisionTimes[lane] > time) {
                     collisionTimes[lane] = time;
                 }
             }
-
         }
     }
 
-    int desiredLane = car->getCurrentLane();
-    double max = DBL_MIN;
-    for (int i = 0; i < 3; i++) {
-        if (collisionTimes[i] > max) {
-            max = collisionTimes[i];
-            desiredLane = i;
+    // keep the lane if we have nowhere to go.
+    if (nextCarDistances[this->targetLane] < 65) {
+
+        double max = DBL_MIN;
+        for (int i = 0; i < 3; i++) {
+            if (std::abs(currentLane - i) > 1) { // change lanes one at a time
+                continue;
+            }
+            if (collisionTimes[i] > max) {
+                max = collisionTimes[i];
+                if (max > 0) { // yes, this is correct
+                    this->targetLane = i;
+                }
+            }
         }
     }
 
 
-    // std::cout << "car: " << car->s << "," << car->d << std::endl;
+    bool brakeAllowed = false;
+    double targetVelocity = MAX_SPEED;
+    if (nextCarDistances[this->targetLane] < 18) {
+        brakeAllowed = true;
+        targetVelocity = nextCarSpeeds[this->targetLane];
+    }
+    if (this->targetLane != currentLane && nextCarDistances[currentLane] < 18) {
+        brakeAllowed = true;
+        targetVelocity = std::min(targetVelocity, nextCarSpeeds[currentLane]);
+    }
 
     vector<double> splinePointsX;
     vector<double> splinePointsY;
 
+    double velocity;
 //     std::cout << "pathSize: " << pathSize << std::endl;
     // decide the previous point
     if (pathSize < 2) { // infer the previous point based on car direction
@@ -85,6 +99,8 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
         double prevCarY = refY - sin(refYaw);
         splinePointsX.push_back(prevCarX);
         splinePointsY.push_back(prevCarY);
+        // need to convert
+        velocity = car->speed * MILES_PER_HOUR_2_METERS_PER_SECOND;
     } else { // use last 2 points from previous path
         refX = prevPathX[pathSize - 1];
         refY = prevPathY[pathSize - 1];
@@ -98,16 +114,22 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
         vector<double> sd = getFrenet(refX, refY, refYaw, mapX, mapY);
         refS = sd[0];
         refD = sd[1];
+
+        velocity = distance(refX, refY, prevCarX, prevCarY) / MILES_PER_HOUR_2_METERS_PER_SECOND / TICK_INTERVAL;
     }
+
+   // std::cout << "targetVelocity: " << targetVelocity  << ", velocity: " << velocity << std::endl;
+
+    bool keepLane = this->targetLane == currentLane;
 
     // push the current car location
     splinePointsX.push_back(refX);
     splinePointsY.push_back(refY);
 
-    // push projections in 3 points 23 meters apart, meters
+    // push projections in 3 points 25 meters apart, meters
     for (int i = 1; i < 4; i++) {
-        vector<double> nextWayPoint = getXY(refS + 25 * i, (LANE_WIDTH / 2 + LANE_WIDTH * desiredLane), mapS, mapX,
-                                            mapY);
+        vector<double> nextWayPoint = getXY(refS + 25 * i, (LANE_WIDTH / 2 + LANE_WIDTH * this->targetLane),
+                                            mapS, mapX, mapY);
         splinePointsX.push_back(nextWayPoint[0]);
         splinePointsY.push_back(nextWayPoint[1]);
     }
@@ -121,15 +143,34 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
     double targetY = s(targetX);
     double target_dist = sqrt(targetX * targetX + targetY * targetY);
 
-    // convert mph into meters
-    double N = target_dist / (0.02 * ref_vel / 2.24);
-
     vector<double> newPathX;
     vector<double> newPathY;
 
     double diffX = 0.;
+
     // fill the missing points
     for (int i = 0; i < PATH_POINTS - pathSize; i++) {
+        // reduce jerk when changing lane
+        double accelerationFactor = 1.;
+        if (!keepLane) {
+            double diff = std::abs(s(diffX) - targetY);
+            accelerationFactor = 0.2 + (LANE_WIDTH - diff) * 0.8;
+        }
+
+        // fix the speed
+        double step_v = MAX_ACCELERATION * accelerationFactor * TICK_INTERVAL ;
+        if (velocity < targetVelocity) {
+            velocity += step_v;
+            velocity = std::min(targetVelocity, velocity);
+        } else if (velocity > targetVelocity) {
+            if (brakeAllowed) {
+                step_v *= 1.5;
+            }
+            velocity -= step_v;
+            velocity = std::max(targetVelocity, velocity);
+        }
+
+        double N = target_dist / (TICK_INTERVAL * velocity / 2.24);
         double x = diffX + targetX / N;
         double y = s(x);
 
@@ -138,6 +179,8 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
         newPathX.push_back(x);
         newPathY.push_back(y);
     }
+ //   std::cout << "velocity END: " << velocity << std::endl;
+
 
     c.toWorld(newPathX, newPathY, refX, refY, refYaw);
 
@@ -175,5 +218,7 @@ const vector<double> &PathPlanner::getPathY() const {
 void PathPlanner::reset() {
     pathX.clear();
     pathY.clear();
+    car = new Car();
+    this->targetLane = 1;
 }
 

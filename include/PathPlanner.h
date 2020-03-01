@@ -5,7 +5,7 @@
 #ifndef PATH_PLANNING_PATHPLANNER_H
 #define PATH_PLANNING_PATHPLANNER_H
 
-static const int PATH_POINTS = 70;
+static const int PATH_POINTS = 50;
 
 #include "Car.h"
 #include <vector>
@@ -32,6 +32,7 @@ public:
 
 private:
     Car *car;
+    int targetLane;
 
     vector<double> prevPathX;
     vector<double> prevPathY;
@@ -46,6 +47,7 @@ private:
     vector<double> mapS;
     vector<double> mapDx;
     vector<double> mapDy;
+
 };
 
 
