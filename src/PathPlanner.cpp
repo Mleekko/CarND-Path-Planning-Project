@@ -45,10 +45,10 @@ void PathPlanner::calculatePath(const vector<Car>& traffic) {
             nextCarDistances[lane] = distance;
             nextCarSpeeds[lane] = other.speed / MILES_PER_HOUR_2_METERS_PER_SECOND;
         }
-        if (distance > -8 && distance < 10) {
+        if (distance > -6 && distance < 8) {
             // can't use the lane - car is too close
             collisionTimes[lane] = 0;
-        } else if (distance >= 10 && distance < 80) {
+        } else if (distance >= 8 && distance < 80) {
             double time = distance / (car->speed - other.speed);
             if (time > 0) {
                 if (collisionTimes[lane] > time) {
