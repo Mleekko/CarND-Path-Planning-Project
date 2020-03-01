@@ -8,7 +8,6 @@
 #include "../include/Constants.h"
 #include <cmath>
 #include <utility>
-#include <iostream>
 #include <cfloat>
 #include  "../include/spline/spline.h"
 
@@ -22,7 +21,7 @@ PathPlanner::PathPlanner(vector<double> mapX, vector<double> mapY, vector<double
     this->targetLane = 1;
 }
 
-void PathPlanner::calculatePath(vector<Car> traffic) {
+void PathPlanner::calculatePath(const vector<Car>& traffic) {
     Coordinates c;
 
     int currentLane = car->getCurrentLane();
@@ -61,8 +60,7 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
 
     // keep the lane if we have nowhere to go.
     if (nextCarDistances[this->targetLane] < 65) {
-
-        double max = DBL_MIN;
+        auto max = DBL_MIN;
         for (int i = 0; i < 3; i++) {
             if (std::abs(currentLane - i) > 1) { // change lanes one at a time
                 continue;
@@ -76,7 +74,6 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
         }
     }
 
-
     bool brakeAllowed = false;
     double targetVelocity = MAX_SPEED;
     if (nextCarDistances[this->targetLane] < 18) {
@@ -88,8 +85,8 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
         targetVelocity = std::min(targetVelocity, nextCarSpeeds[currentLane]);
     }
 
-    vector<double> splinePointsX;
-    vector<double> splinePointsY;
+    this->splinePointsX.clear();
+    this->splinePointsY.clear();
 
     double velocity;
 //     std::cout << "pathSize: " << pathSize << std::endl;
@@ -118,17 +115,15 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
         velocity = distance(refX, refY, prevCarX, prevCarY) / MILES_PER_HOUR_2_METERS_PER_SECOND / TICK_INTERVAL;
     }
 
-   // std::cout << "targetVelocity: " << targetVelocity  << ", velocity: " << velocity << std::endl;
-
     bool keepLane = this->targetLane == currentLane;
 
     // push the current car location
     splinePointsX.push_back(refX);
     splinePointsY.push_back(refY);
 
-    // push projections in 3 points 25 meters apart, meters
-    for (int i = 1; i < 4; i++) {
-        vector<double> nextWayPoint = getXY(refS + 25 * i, (LANE_WIDTH / 2 + LANE_WIDTH * this->targetLane),
+    // push projections in 2 points 40 meters apart
+    for (int i = 1; i < 3; i++) {
+        vector<double> nextWayPoint = getXY(refS + 40 * i, (LANE_WIDTH / 2 + LANE_WIDTH * this->targetLane),
                                             mapS, mapX, mapY);
         splinePointsX.push_back(nextWayPoint[0]);
         splinePointsY.push_back(nextWayPoint[1]);
@@ -143,8 +138,8 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
     double targetY = s(targetX);
     double target_dist = sqrt(targetX * targetX + targetY * targetY);
 
-    vector<double> newPathX;
-    vector<double> newPathY;
+    newPathX.clear();
+    newPathY.clear();
 
     double diffX = 0.;
 
@@ -154,7 +149,7 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
         double accelerationFactor = 1.;
         if (!keepLane) {
             double diff = std::abs(s(diffX) - targetY);
-            accelerationFactor = 0.2 + (LANE_WIDTH - diff) * 0.8;
+            accelerationFactor = (LANE_WIDTH - diff) / LANE_WIDTH * 0.65;
         }
 
         // fix the speed
@@ -185,8 +180,8 @@ void PathPlanner::calculatePath(vector<Car> traffic) {
     c.toWorld(newPathX, newPathY, refX, refY, refYaw);
 
     // add the missing points to the path
-    pathX.insert(pathX.end(), newPathX.begin(), newPathX.end());
-    pathY.insert(pathY.end(), newPathY.begin(), newPathY.end());
+    prevPathX.insert(prevPathX.end(), newPathX.begin(), newPathX.end());
+    prevPathY.insert(prevPathY.end(), newPathY.begin(), newPathY.end());
 
 }
 
@@ -208,16 +203,16 @@ void PathPlanner::updatePrevPath(vector<double> &prevPathX, vector<double> &prev
 
 
 const vector<double> &PathPlanner::getPathX() const {
-    return pathX;
+    return prevPathX;
 }
 
 const vector<double> &PathPlanner::getPathY() const {
-    return pathY;
+    return prevPathY;
 }
 
 void PathPlanner::reset() {
-    pathX.clear();
-    pathY.clear();
+    prevPathX.clear();
+    prevPathY.clear();
     car = new Car();
     this->targetLane = 1;
 }

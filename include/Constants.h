@@ -13,4 +13,6 @@ static const double TICK_INTERVAL = 0.02;
 static const double MILES_PER_HOUR_2_METERS_PER_SECOND = 0.44704;
 static const double MAX_ACCELERATION = 9.807;
 
+static const int PATH_POINTS = 50;
+
 #endif //PATH_PLANNING_CONSTANTS_H
